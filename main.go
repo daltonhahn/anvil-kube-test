@@ -83,14 +83,13 @@ func Starter(w http.ResponseWriter, r *http.Request) {
 		IsTLS = false
 	}
 	Members = starterBlock.Mems
+	fmt.Fprintf(w, "Config: %s\n", starterBlock)
 	time.Sleep(10*time.Second)
 
 	registerUDP()
 	if IsLead == true {
 		go heartbeatSend()
 	}
-
-	fmt.Fprintf(w, "Config: %s\n", starterBlock)
 }
 
 func heartbeatRecv(w http.ResponseWriter, r *http.Request) {
