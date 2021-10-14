@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"encoding/json"
 	"math/rand"
 	"github.com/gorilla/mux"
@@ -173,13 +174,16 @@ func recvGossip(p []byte, ser *net.UDPConn) {
 			log.Fatalln(err)
 		}
 
-		fmt.Println("R: Pong")
 		message := string(p[:n])
 		if len(message) == 0 {
 			log.Fatalln("Message empty ", err)
 		}
-		GossipRecvCount = GossipRecvCount + 1
-		encMessage := "GACK --- " + strconv.Itoa(GossipRecvCount)
-		ser.WriteTo([]byte(encMessage), remoteaddr)
+
+		if strings.Contains(message, "GOSSIP -- ") {
+			fmt.Println("R: Pong")
+			GossipRecvCount = GossipRecvCount + 1
+			encMessage := "GACK --- " + strconv.Itoa(GossipRecvCount)
+			ser.WriteTo([]byte(encMessage), remoteaddr)
+		}
 	}
 }
