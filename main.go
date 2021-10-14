@@ -107,6 +107,7 @@ func heartbeatRecv(w http.ResponseWriter, r *http.Request) {
 		log.Fatalln(err)
         }
 	HeartbeatRecvCount = HeartbeatRecvCount + 1
+	fmt.Println("R: Beat")
 
         var jsonData []byte
         jsonData, err = json.Marshal("HACK --- " + strconv.Itoa(HeartbeatRecvCount))
@@ -124,6 +125,7 @@ func heartbeatSend() {
 			myTime := time.Now()
 			HeartbeatSendCount = HeartbeatSendCount + 1
 			msg := strconv.Itoa(HeartbeatSendCount)
+			fmt.Println("S: Beat")
 
 			HBMsg := struct {
 				Time time.Time
@@ -154,6 +156,7 @@ func sendGossip(conn *net.UDPConn) {
 		if err != nil {
 			log.Fatalln("Invalid IP address")
 		}
+		fmt.Println("S: Ping")
 		myTime := time.Now()
 		encMessage := ("GOSSIP -- " + myTime.String())
 		conn.WriteTo([]byte(encMessage), addr)
@@ -170,6 +173,7 @@ func recvGossip(p []byte, ser *net.UDPConn) {
 			log.Fatalln(err)
 		}
 
+		fmt.Println("R: Pong")
 		message := string(p[:n])
 		if len(message) == 0 {
 			log.Fatalln("Message empty ", err)
