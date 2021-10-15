@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"os"
 	"fmt"
+	"context"
 	"sync"
 	"bytes"
 	"time"
@@ -16,9 +20,13 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var server *http.Server
+var route *mux.Router
+
 var IsLead bool = false
 var IsTLS bool = false
 var Members []string
+var Identity string
 
 var GossipSendCount int = 0
 var GossipRecvCount int = 0
@@ -28,14 +36,62 @@ var HeartbeatRecvCount int = 0
 var S = rand.NewSource(time.Now().Unix())
 var R = rand.New(S)
 
-func main() {
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
+func getConfig() (*tls.Config) {
+	curDir, _ := os.Getwd()
+
+	caCertPool := x509.NewCertPool()
+        caCert, err := ioutil.ReadFile(curDir+"/certs/ca.crt")
+	if err != nil {
+		log.Printf("Read file error #%v", err)
+        }
+        caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{}
+        tlsConfig.Certificates = make([]tls.Certificate, 1)
+
+        tlsConfig.Certificates[0], err = tls.LoadX509KeyPair(curDir+"/certs/"+Identity+".crt", curDir+"/certs/"+Identity+".key")
+        if err != nil {
+                log.Fatal("YOOOOOOOO ", err)
+        }
+        tlsConfig.BuildNameToCertificate()
+
+	keyPairs := tlsConfig.Certificates
+	caCerts := caCertPool
+
+	myConf := &tls.Config{
+                ClientCAs:              caCerts,
+                Certificates:           keyPairs,
+        }
+	return myConf
+}
+
+func startTLS() {
+	//Add some logic to make sure that you're assigning the correct cert to this node 
         route := mux.NewRouter()
         registerRoutes(route)
+	newserver := &http.Server {
+		Addr: ":8080",
+		TLSConfig: getConfig(),
+		Handler: route,
+	}
 
+	//log.Println(server.ListenAndServeTLS(curDir + "/certs/"+Identity+".crt", curDir+"/certs/"+Identity+".key"))
+	if err := newserver.ListenAndServeTLS("", ""); err != nil {
+		log.Println("YOOOOOOOO ", err)
+	}
+}
+
+func main() {
+	wg := new(sync.WaitGroup)
+	wg.Add(2)
+        route := mux.NewRouter()
+        registerRoutes(route)
+	server = &http.Server{
+                Addr: ":8080",
+                Handler: route,
+        }
 	go func() {
-		log.Println(http.ListenAndServe(":8080", route))
+		log.Println(server.ListenAndServe())
 		wg.Done()
 	}()
 	wg.Wait()
@@ -58,6 +114,11 @@ func registerUDP() {
 func registerRoutes(route *mux.Router) {
         route.HandleFunc("/starter", Starter).Methods("POST")
         route.HandleFunc("/heartbeat", heartbeatRecv).Methods("POST")
+	route.HandleFunc("/", HelloWorld).Methods("GET")
+}
+
+func HelloWorld(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello World\n")
 }
 
 func Starter(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +127,7 @@ func Starter(w http.ResponseWriter, r *http.Request) {
 		Lead bool
 		TLS bool
 		Mems []string
+		Identity string
 	}{}
 	err := decoder.Decode(&starterBlock)
         if err != nil {
@@ -83,9 +145,26 @@ func Starter(w http.ResponseWriter, r *http.Request) {
 		IsTLS = false
 	}
 	Members = starterBlock.Mems
+	Identity = starterBlock.Identity
 	fmt.Fprintf(w, "Config: %s\n", starterBlock)
-	time.Sleep(10*time.Second)
+	go setupDaemon()
+}
 
+func setupDaemon() {
+	if IsTLS == true {
+		ctxShutDown, cancel := context.WithTimeout(context.Background(), (5*time.Second))
+		defer func() {
+			cancel()
+		}()
+		if err := server.Shutdown(ctxShutDown); err != nil {
+			log.Printf("server Shutdown Failed:%+s", err)
+		}
+		if err := server.Shutdown(ctxShutDown); err != nil {
+			log.Printf("server Shutdown Failed:%+s", err)
+                }
+		go startTLS()
+	}
+	time.Sleep(10*time.Second)
 	registerUDP()
 	if IsLead == true {
 		go heartbeatSend()
@@ -186,3 +265,19 @@ func recvGossip(p []byte, ser *net.UDPConn) {
 		}
 	}
 }
+
+
+/*
+        rotFlag = true
+        go func() {
+                for {
+                        <-sigHandle
+                        if rotFlag == true {
+                                rotFlag = false
+                                go cw.startNewServer(anv_router)
+                        }
+                }
+                wg.Done()
+        }()
+        go cw.startNewServer(anv_router)
+	*/
