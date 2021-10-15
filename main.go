@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"os"
 	"fmt"
 	"context"
 	"sync"
@@ -37,10 +36,8 @@ var S = rand.NewSource(time.Now().Unix())
 var R = rand.New(S)
 
 func getConfig() (*tls.Config) {
-	curDir, _ := os.Getwd()
-
 	caCertPool := x509.NewCertPool()
-        caCert, err := ioutil.ReadFile(curDir+"/certs/ca.crt")
+        caCert, err := ioutil.ReadFile("/root/anvil-kube-test/certs/ca.crt")
 	if err != nil {
 		log.Printf("Read file error #%v", err)
         }
@@ -49,7 +46,7 @@ func getConfig() (*tls.Config) {
 	tlsConfig := &tls.Config{}
         tlsConfig.Certificates = make([]tls.Certificate, 1)
 
-        tlsConfig.Certificates[0], err = tls.LoadX509KeyPair(curDir+"/certs/"+Identity+".crt", curDir+"/certs/"+Identity+".key")
+        tlsConfig.Certificates[0], err = tls.LoadX509KeyPair("/root/anvil-kube-test/certs/"+Identity+".crt", "/root/anvil-kube-test/certs/"+Identity+".key")
         if err != nil {
                 log.Fatal("YOOOOOOOO ", err)
         }
@@ -66,7 +63,6 @@ func getConfig() (*tls.Config) {
 }
 
 func startTLS() {
-	//Add some logic to make sure that you're assigning the correct cert to this node 
         route := mux.NewRouter()
         registerRoutes(route)
 	newserver := &http.Server {
@@ -75,7 +71,6 @@ func startTLS() {
 		Handler: route,
 	}
 
-	//log.Println(server.ListenAndServeTLS(curDir + "/certs/"+Identity+".crt", curDir+"/certs/"+Identity+".key"))
 	if err := newserver.ListenAndServeTLS("", ""); err != nil {
 		log.Println("YOOOOOOOO ", err)
 	}
@@ -216,11 +211,10 @@ func heartbeatSend() {
 			postBody := bytes.NewBuffer(jsonData)
 			var resp *http.Response
 			if IsTLS == true {
-				curDir, _ := os.Getwd()
-				caCert, _ := ioutil.ReadFile(curDir+"/certs/ca.crt")
+				caCert, _ := ioutil.ReadFile("/root/anvil-kube-test/certs/ca.crt")
 				caCertPool := x509.NewCertPool()
 				caCertPool.AppendCertsFromPEM(caCert)
-				cert,_ := tls.LoadX509KeyPair(curDir+"/certs/"+Identity+".crt", curDir+"/certs/"+Identity+".key")
+				cert,_ := tls.LoadX509KeyPair("/root/anvil-kube-test/certs/"+Identity+".crt", "/root/anvil-kube-test/certs/"+Identity+".key")
 
 				client := &http.Client{
 					Transport: &http.Transport{
