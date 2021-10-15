@@ -159,9 +159,6 @@ func setupDaemon() {
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			log.Printf("server Shutdown Failed:%+s", err)
 		}
-		if err := server.Shutdown(ctxShutDown); err != nil {
-			log.Printf("server Shutdown Failed:%+s", err)
-                }
 		go startTLS()
 	}
 	time.Sleep(10*time.Second)
@@ -217,7 +214,33 @@ func heartbeatSend() {
 				log.Fatalln("Unable to marshal JSON for HB Send")
 			}
 			postBody := bytes.NewBuffer(jsonData)
-			resp, err := http.Post("http://"+ele+":8080/heartbeat", "application/json", postBody)
+			var resp *http.Response
+			if IsTLS == true {
+				curDir, _ := os.Getwd()
+				caCert, _ := ioutil.ReadFile(curDir+"/certs/ca.crt")
+				caCertPool := x509.NewCertPool()
+				caCertPool.AppendCertsFromPEM(caCert)
+				cert,_ := tls.LoadX509KeyPair(curDir+"/certs/"+Identity+".crt", curDir+"/certs/"+Identity+".key")
+
+				client := &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{
+							RootCAs:      caCertPool,
+							Certificates: []tls.Certificate{cert},
+						},
+					},
+				}
+				req, err := http.NewRequest("POST", ("https://"+ele+":8080/heartbeat"), postBody)
+				resp, err = client.Do(req)
+				if err != nil {
+					log.Fatalln(err)
+				}
+			} else {
+				resp, err = http.Post("http://"+ele+":8080/heartbeat", "application/json", postBody)
+				if err != nil {
+					log.Fatalln(err)
+				}
+			}
 			body, err := ioutil.ReadAll(resp.Body)
 			if err != nil || len(body) == 0 {
 				log.Fatalln(err)
@@ -265,19 +288,3 @@ func recvGossip(p []byte, ser *net.UDPConn) {
 		}
 	}
 }
-
-
-/*
-        rotFlag = true
-        go func() {
-                for {
-                        <-sigHandle
-                        if rotFlag == true {
-                                rotFlag = false
-                                go cw.startNewServer(anv_router)
-                        }
-                }
-                wg.Done()
-        }()
-        go cw.startNewServer(anv_router)
-	*/
